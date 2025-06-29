@@ -69,6 +69,7 @@ class MCPClient:
 
         response = await self.session.list_tools()
         # 可调用的工具信息加到api里面，具体内容参考实际接口的文档
+        # 可用工具传递给LLM的方法除了使用API接口里面的tools参数以外，也可以通过role=system的消息传递给LLM，这样传递需要在消息里面约定返回格式
         available_tools = [{
             "type": 'function',
             "function": {
@@ -91,10 +92,13 @@ class MCPClient:
 
         print("reponse: %s" % str(response))
         choice = response.choices[0]
+
         # 调用工具,这部分内容根据具体api文档来实现，这里是安装kimi的规则来的
-        # 核心内容就是大模型返回需要调用MCP工具才能获取最终结果，根据返回参数使用call_tool调用工具得到结果，再一起发送给大模型得到最终结果
+        # 核心内容就是大模型返回需要调用MCP工具回去必要信息，根据返回参数使用call_tool调用工具得到结果，再一起发送给大模型得到最终结果
+        # 这里需要判断LLM的回答是否结束，如果需要多轮调用MCP工具需要不断循环直到LLM返回了最终回答的标识后才结束
+        # 这里演示没有做循环处理
         if choice.finish_reason == "tool_calls":
-            # 把返回的role='assistant'消息也添加到上下文中, 不加这个会报tool_call_id  is not found错误
+            # 把返回的role='assistant'消息也添加到上下文中,LLM的返回响应也需要作为assistant再次提交, 不加会报tool_call_id  is not found错误
             messages.append(choice.message)
             for tool_call in choice.message.tool_calls: # <-- tool_calls 可能是多个，因此我们使用循环逐个执行
                 tool_call_name = tool_call.function.name
